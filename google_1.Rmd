@@ -1,0 +1,358 @@
+---
+title: "Google Data Analytics Capstone project number 1"
+subtitle: "Cyclistic Bike-share Analysis Case Study"
+author: "Raydi Tran"
+date: '2022-07-13'
+output:
+  html_document: default
+  pdf_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## INTRODUCTION
+
+This is a capstone project from Google Data Analytics Professional Certificate course on Coursera. In this project, the six steps of the data analysis process : Ask, Prepare, Process, Analyze, Share and Act is used to answer business question.
+
+### ASK
+
+#### I. Background
+
+Cyclistic is a bike-share company in Chicago. They offer a bike-share program that features more than 5,800 bicycles and 600 docking stations. By providing reclining bikes, hand tricycles, and cargo bikes, Cyclistic distinguishes itself from the competition and broadens the appeal of bike sharing to riders with disabilities and those who are unable to utilize a conventional two-wheeled bike.
+
+The company’s future success is believed to be dependent on maximizing the number of annual memberships. Therefore,
+it is crucial to understand how casual riders and annual members use Cyclistic bikes differently.
+
+#### II. Business task
+
+Design marketing strategies aimed at converting casual riders into annual members.
+
+#### III. Business questions
+
+1. How do annual members and casual riders use Cyclistic bikes differently?
+2. Why would casual riders buy Cyclistic annual memberships?
+3. How can Cyclistic use digital media to influence casual riders to become members?
+
+In this scenario, question number 1 is tasked to the analyst.
+
+#### IV. Deliverables
+
+1. A clear statement of the business task
+2. A description of all data sources used
+3. Documentation of any cleaning or manipulation of data
+4. A summary of your analysis
+5. Supporting visualizations and key findings
+6. Your top three recommendations based on your analysis
+
+#### V. Key Stakeholders
+
+ * Lily Moreno: The director of marketing and your manager.
+ * Cyclistic marketing analytics team: A team of data analysts who helps guide Cyclistic marketing strategy.
+ * Cyclistic executive team: The team who will decide whether to approve the recommended marketing program.
+
+### PREPARE
+
+#### I. Data information
+
+The past 12 months of the data started from June 2021 to June 2022, they are stored in seperated csv file for each month located in S3 bucket of Amazon.
+
+#### II. Is the data ROCCC?
+
+ROCCC stands for **R**eliable, **O**riginal, **C**omprehensive, **C**urrent, and **C**ited, which indicates a good data source:
+
+1. Data is Reliable as it is accurate, complete and unbiased.
+2. Data is Original as it is first party information.
+3. Data is Comprehensive as it contains information needed to answer the question.
+4. Data is Current as past 12 months of data is being used.
+5. Data is Cited as it is approved with license.
+
+#### III. Data security
+
+Riders’ personally identifiable information \textit{(rider_id)} is hidden through crytography.
+
+#### IV. Data limitation
+
+Due to data-privacy issues, it is not doable to connect pass purchases to credit card numbers to determine if casual riders live in the Cyclistic service area or if they have purchased multiple single passes.
+
+### PROCESS
+
+In this project, R is used to prepare and process the data.
+
+#### Prepare the environment
+
+These libraries are used in the process of preparing dataset.
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(lubridate)
+library(hms)
+library(ggthemes)
+library(metR)
+```
+
+#### Importing the data set
+
+Since the data are separated for each month, it is best to merge into a single file.
+
+```{r import-data, message=FALSE}
+data_1 <- read_csv("..Datasets\\bike\\202106-divvy-tripdata.csv")
+data_2 <- read_csv("..Datasets\\bike\\202107-divvy-tripdata.csv")
+data_3 <- read_csv("..Datasets\\bike\\202108-divvy-tripdata.csv")
+data_4 <- read_csv("..Datasets\\bike\\202109-divvy-tripdata.csv")
+data_5 <- read_csv("..Datasets\\bike\\202110-divvy-tripdata.csv")
+data_6 <- read_csv("..Datasets\\bike\\202111-divvy-tripdata.csv")
+data_7 <- read_csv("..Datasets\\bike\\202112-divvy-tripdata.csv")
+data_8 <- read_csv("..Datasets\\bike\\202201-divvy-tripdata.csv")
+data_9 <- read_csv("..Datasets\\bike\\202202-divvy-tripdata.csv")
+data_10 <- read_csv("..Datasets\\bike\\202203-divvy-tripdata.csv")
+data_11 <- read_csv("..Datasets\\bike\\202204-divvy-tripdata.csv")
+data_12 <- read_csv("..Datasets\\bike\\202205-divvy-tripdata.csv")
+data_13 <- read_csv("..Datasets\\bike\\202206-divvy-tripdata.csv")
+
+data <- do.call('rbind', list(data_1, data_2, data_3, data_4, data_5, data_6, data_7, data_8, data_9, data_10, data_11, data_12, data_13))
+```
+
+Rename the columns for better consistent and more be more precised.
+
+```{r rename-cols, message=FALSE}
+data <- rename(data
+                   ,trip_id  = ride_id
+                   ,bikeid = rideable_type 
+                   ,start_time = started_at  
+                   ,end_time = ended_at  
+                   ,from_station_name = start_station_name
+                   ,from_station_id = start_station_id
+                   ,to_station_name = end_station_name
+                   ,to_station_id = end_station_id
+                   ,usertype = member_casual)
+```
+
+Next step is to add the amount of time a rider rented a bike, at what day does he/she use and seasonal columns for later analysis.
+
+```{r create-cols, message=FALSE}
+data$ride_length <- as_hms(round(difftime(data$end_time, data$start_time, units = 'mins')))
+data$ride_length <- as.numeric(data$ride_length)
+data <- data %>%
+  filter(ride_length > 0)
+
+data$day_of_week <- weekdays(data$start_time)
+
+data$season <- season(data$start_time, lang = 'en')
+#unique(data$season)
+data$season <- recode_factor(data$season, DJF = "Winter", MAM = "Spring", JJA = "Summer", SON = "Fall")
+#unique(data$season)
+```
+
+After the columns addition, previewing the first 5 rows to get a glimpse of the dataframe
+
+```{r preview-1st}
+head(data)
+```
+
+Get a couple base information regarding the dataframe
+
+```{r get-some-infos}
+glimpse(data)
+nrow(data)
+ncol(data)
+```
+
+Select only relevant columns for later analysis
+
+```{r select-relavent-cols}
+bike_data <- data %>%
+  select(-start_lat, -start_lng, -end_lat, -end_lng)
+
+ncol(bike_data)
+head(bike_data)
+```
+
+Find the number of null in each column
+
+```{r find-na}
+colSums(is.na(bike_data))
+```
+
+Since the dataframe has more than 6 million records, it is acceptable to drop all null row
+
+```{r drop-na}
+nrow(bike_data)
+bike_data <- bike_data %>%
+  drop_na()
+nrow(bike_data)
+```
+
+The final dataframe for analysis can be previewed as following
+
+```{r preview-2nd}
+head(bike_data)
+```
+
+### ANALYZE
+
+#### Performing statistic calculation on dataframe
+
+```{r statistic}
+summary(bike_data)
+
+bike_data %>% 
+  summarize(max(ride_length)/60, min(ride_length)/60, mean(ride_length)/60)
+```
+
+**Observation:** On average, riders used the services for 20.3 minutes.
+
+#### Which day has the most number of riders rented
+
+```{r plot-1}
+bike_data %>%
+  group_by(day_of_week) %>%
+  summarize(no_of_rides = n()) %>%
+  arrange(desc(no_of_rides)) %>%
+  ggplot(aes(x = reorder(day_of_week, no_of_rides), y = no_of_rides, fill = day_of_week)) + geom_col() + labs(title = 'Number of rides during the week', x = 'Weekday', y = 'Number of rides') + theme(legend.position="none")
+```
+
+**Observation:** From the plot, it is cleared that Saturday and Sunday (weekends) have the most number of rides.
+
+#### Which bike is used the most
+
+```{r plot-2}
+bike_data_2 <- bike_data %>%
+  group_by(bikeid) %>%
+  summarize(no_of_used = n()) %>%
+  mutate(percent = no_of_used/sum(no_of_used)) %>%
+  arrange(desc(no_of_used)) %>%
+  mutate(labels = scales::percent(percent))
+  
+ggplot(data = bike_data_2, aes(x="", y=percent, fill=bikeid)) + 
+  geom_bar(stat="identity", color="white") + 
+  coord_polar("y", start=0) + theme_void() + 
+  labs(title = "Percentages used of each type of bike") + 
+  scale_fill_discrete(name = "Type of bike", labels = c("Classic", "Electric", "Docked")) + 
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5))
+```
+
+**Observation:** From the pie chart, Most riders prefer to use the Classic bike.
+
+#### Which station sees the most used bike
+
+```{r message=FALSE}
+top_10_station <- bike_data %>%
+  group_by(from_station_name) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+#nrow(top_10_station)
+head(top_10_station,10)
+
+top_10_station_type <- bike_data %>%
+  group_by(from_station_name, usertype) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+head(top_10_station_type, 20)
+```
+
+**Observation:** From the summary table, Station Streeter Dr & Grand Ave has the most number of rides, which the majority is casual rider.
+
+#### How differ does each type of riders using the service
+
+```{r}
+bike_data %>%
+  group_by(usertype) %>%
+  summarize(max(ride_length)/60, min(ride_length)/60, mean(ride_length)/60)
+```
+
+**Observation:** Casual riders rented bike longer than member riders, an average of nearly 30 minutes compared to 13 minutes.
+
+#### Average duration of ride for each type of rider per day
+
+```{r warning=FALSE, message=FALSE}
+bike_data %>%
+  group_by(usertype, day_of_week) %>%
+  summarize(no_of_rides = n(), avg_dur = mean(ride_length)) %>%
+  arrange(usertype, desc(no_of_rides)) %>%
+  ggplot(aes(x=reorder(day_of_week, avg_dur), y=avg_dur, fill=usertype)) + geom_col() + labs(title = "Average duration of ride per type of rider per day") + xlab("Weekday") + ylab("Average duration (s)")
+```
+
+**Observation:** Casual members rented bike longer.
+
+#### Total number of ride for each type of rider per day
+
+```{r warning=FALSE, message=FALSE}
+bike_data %>%
+  group_by(usertype, day_of_week) %>%
+  summarize(no_of_rides = n(), avg_dur = mean(ride_length)) %>%
+  arrange(usertype, desc(no_of_rides)) %>%
+  ggplot(aes(x=reorder(day_of_week, no_of_rides), y=no_of_rides, fill=usertype)) + geom_col() + labs(title = "Total number of rides per type of rider per day") + xlab("Weekday") + ylab("Number of rides")
+```
+
+**Observation:** More member riders during weekday than casual riders, more casual riders during the weekends than member riders.
+
+#### Percentages of each type of rider using the service
+
+```{r}
+mem_cas <- bike_data %>%
+  group_by(usertype) %>%
+  summarize(count = n()) %>%
+  mutate(percent = count/sum(count)) %>%
+  mutate(labels = scales::percent(percent))
+
+ggplot(data = mem_cas, aes(x="", y=percent, fill=usertype)) + 
+  geom_bar(stat="identity", color="white") + 
+  coord_polar("y", start=0) + theme_void() + 
+  labs(title = "Percentages of each type of rider using the service") + 
+  scale_fill_discrete(name = "Rider type", labels = c("Casual", "Member")) + 
+  geom_text(aes(label = labels), position = position_stack(vjust = 0.5))
+```
+
+**Observation:** Cyclistic has more member riders to casual riders.
+
+#### Seasonal analysis
+
+```{r seasonal-no-of-rides, message=FALSE}
+bike_data %>%
+  group_by(season, day_of_week, usertype) %>%   
+  summarise(no_of_rides = n()						 
+  ,avg_dur = mean(ride_length)) %>% 
+ggplot() + geom_col(mapping = aes(x = reorder(day_of_week, no_of_rides), y = no_of_rides, fill = usertype), position = "dodge") + facet_wrap(~season) + scale_y_continuous(breaks = seq(0, 400000, by = 50000)) + scale_fill_discrete(name = "Rider type", labels = c("Casual", "Member")) + labs(title = "Number of rides for each type of rider per day during 4 seasons") + xlab("Weekday") + ylab("Number of rides") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+**Observation:** Summer and fall see the most number of rides
+
+```{r seasonal-avgdur-of-rides, message=FALSE}
+bike_data %>%
+  group_by(season, day_of_week, usertype) %>%   
+  summarise(no_of_rides = n()						 
+  ,avg_dur = mean(ride_length)) %>% 
+ggplot() + geom_col(mapping = aes(x = reorder(day_of_week, avg_dur), y = avg_dur, fill = usertype), position = "dodge") + facet_wrap(~season) + scale_fill_discrete(name = "Rider type", labels = c("Casual", "Member")) + labs(title = "Average duration of rides for each type of rider per day during 4 seasons") + xlab("Weekday") + ylab("Average duration (s)") + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+**Observation:** Summer is the time when riders have longer duration in renting bike.
+
+### SHARE
+
+#### I. Conclusion/Summary of analysis
+
+The business question needed to answer is: How do annual members and casual riders use Cyclistic bikes differently? Annual members and casual riders differ to each others in how long they use the bikes, on which day mostly used and how often they used the service.
+
+* Number of rides tends to peek at Weekends, a majority of which is casual riders. This could mean that during the weekends there are various people using the services such as tourists or one-time used citizens.
+* Casual riders tends to rent bike longer, this can be explained by the fact that member riders used the bike to commute daily
+* Bike renting started to increase from Spring to Summer, then started to decline from Summer until Winter, which can be interpreted as during the first three seasons the weather seems to be more enjoyable to cycle and winter is when less riders wanting to cycle in cold weather.
+* More than 50% of riders are annual members, this means the company is successful at converting casual to member rider.
+* More than a thousand station, yet Streeter Dr & Grand Ave, Michigan Ave & Oak St and Wells St & Concord Ln are the three most common spot for riders to use the service
+
+#### II. Recommendations
+
+Some of the recommendations can be as follow:
+
+* Longer rides should have discount in prices.
+* Since weekends see many casual riders renting bike, the company should have weekends membership offers. This could attract more casual to become member riders.
+* Marketing campaign should begin near the end of Spring until Fall as the number of both casual and member riders peeked during this period.
+* Marketing campaign can also target the top 10 stations to maximize profits as more riders tend to use bike at those station.
+
